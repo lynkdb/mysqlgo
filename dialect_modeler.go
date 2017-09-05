@@ -1,25 +1,45 @@
-package mysql
+// Copyright 2014 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package mysqlgo
 
 import (
 	"errors"
 	"fmt"
-	"github.com/lessos/lessgo/data/rdo/base"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/lynkdb/iomix/rdb"
+	"github.com/lynkdb/iomix/rdb/modeler"
 )
 
 // "SET NAMES 'utf8'"
 // "SET CHARACTER_SET_CLIENT=utf8"
 // "SET CHARACTER_SET_RESULTS=utf8"
 
-func (dc *mysqlDialect) SchemaIndexAdd(dbName, tableName string, index *base.Index) error {
+type DialectModeler struct {
+	base rdb.Connector
+}
+
+func (dc *DialectModeler) IndexAdd(dbName, tableName string, index *modeler.Index) error {
 
 	action := ""
 	switch index.Type {
-	case base.IndexTypeIndex:
+	case modeler.IndexTypeIndex:
 		action = "INDEX"
-	case base.IndexTypeUnique:
+	case modeler.IndexTypeUnique:
 		action = "UNIQUE"
 	default:
 		// PRIMARY KEY can be modified, can not be added
@@ -30,36 +50,36 @@ func (dc *mysqlDialect) SchemaIndexAdd(dbName, tableName string, index *base.Ind
 		dbName, tableName, action, index.Name,
 		dc.QuoteStr(strings.Join(index.Cols, dc.QuoteStr(","))))
 
-	_, err := dc.Base().ExecRaw(sql)
+	_, err := dc.base.ExecRaw(sql)
 
 	return err
 }
 
-func (dc *mysqlDialect) SchemaIndexDel(dbName, tableName string, index *base.Index) error {
+func (dc *DialectModeler) IndexDel(dbName, tableName string, index *modeler.Index) error {
 
 	// PRIMARY KEY can be modified, can not be deleted
-	if index.Type == base.IndexTypePrimaryKey {
+	if index.Type == modeler.IndexTypePrimaryKey {
 		return nil
 	}
 
 	sql := fmt.Sprintf("ALTER TABLE `%s`.`%s` DROP INDEX `%s`",
 		dbName, tableName, index.Name)
 
-	_, err := dc.Base().ExecRaw(sql)
+	_, err := dc.base.ExecRaw(sql)
 
 	return err
 }
 
-func (dc *mysqlDialect) SchemaIndexSet(dbName, tableName string, index *base.Index) error {
+func (dc *DialectModeler) IndexSet(dbName, tableName string, index *modeler.Index) error {
 
 	dropAction, addAction := "", ""
 
 	switch index.Type {
-	case base.IndexTypePrimaryKey:
+	case modeler.IndexTypePrimaryKey:
 		dropAction, addAction = "PRIMARY KEY", "PRIMARY KEY"
-	case base.IndexTypeIndex:
+	case modeler.IndexTypeIndex:
 		dropAction, addAction = "INDEX `"+index.Name+"`", "INDEX `"+index.Name+"`"
-	case base.IndexTypeUnique:
+	case modeler.IndexTypeUnique:
 		dropAction, addAction = "INDEX `"+index.Name+"`", "UNIQUE `"+index.Name+"`"
 	default:
 		return errors.New("Invalid Index Type")
@@ -69,20 +89,20 @@ func (dc *mysqlDialect) SchemaIndexSet(dbName, tableName string, index *base.Ind
 		dbName, tableName, dropAction, addAction,
 		dc.QuoteStr(strings.Join(index.Cols, dc.QuoteStr(","))))
 	//fmt.Println(sql)
-	_, err := dc.Base().ExecRaw(sql)
+	_, err := dc.base.ExecRaw(sql)
 
 	return err
 }
 
-func (dc *mysqlDialect) SchemaIndexQuery(dbName, tableName string) ([]*base.Index, error) {
+func (dc *DialectModeler) IndexQuery(dbName, tableName string) ([]*modeler.Index, error) {
 
-	indexes := []*base.Index{}
+	indexes := []*modeler.Index{}
 
 	s := "SELECT `INDEX_NAME`, `NON_UNIQUE`, `COLUMN_NAME` "
 	s += "FROM `INFORMATION_SCHEMA`.`STATISTICS` "
 	s += "WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ?"
 
-	rows, err := dc.Base().Conn.Query(s, dbName, tableName)
+	rows, err := dc.base.DB().Query(s, dbName, tableName)
 	if err != nil {
 		return indexes, err
 	}
@@ -98,11 +118,11 @@ func (dc *mysqlDialect) SchemaIndexQuery(dbName, tableName string) ([]*base.Inde
 		}
 
 		if indexName == "PRIMARY" {
-			indexType = base.IndexTypePrimaryKey
+			indexType = modeler.IndexTypePrimaryKey
 		} else if "YES" == nonUnique || nonUnique == "1" {
-			indexType = base.IndexTypeIndex
+			indexType = modeler.IndexTypeIndex
 		} else {
-			indexType = base.IndexTypeUnique
+			indexType = modeler.IndexTypeUnique
 		}
 
 		exist := false
@@ -115,16 +135,16 @@ func (dc *mysqlDialect) SchemaIndexQuery(dbName, tableName string) ([]*base.Inde
 		}
 
 		if !exist {
-			indexes = append(indexes, base.NewIndex(indexName, indexType).AddColumn(colName))
+			indexes = append(indexes, modeler.NewIndex(indexName, indexType).AddColumn(colName))
 		}
 	}
 
 	return indexes, nil
 }
 
-func (dc *mysqlDialect) SchemaColumnTypeSql(col *base.Column) string {
+func (dc *DialectModeler) ColumnTypeSql(col *modeler.Column) string {
 
-	sql, ok := columnTypes[col.Type]
+	sql, ok := dialect_column_types[col.Type]
 	if !ok {
 		return dc.QuoteStr(col.Name) + col.Type
 		//, errors.New("Unsupported column type `" + col.Type + "`")
@@ -165,51 +185,51 @@ func (dc *mysqlDialect) SchemaColumnTypeSql(col *base.Column) string {
 	return dc.QuoteStr(col.Name) + " " + sql
 }
 
-func (dc *mysqlDialect) SchemaColumnAdd(dbName, tableName string, col *base.Column) error {
+func (dc *DialectModeler) ColumnAdd(dbName, tableName string, col *modeler.Column) error {
 
 	sql := fmt.Sprintf("ALTER TABLE `%v`.`%v` ADD %v",
-		dbName, tableName, dc.SchemaColumnTypeSql(col))
+		dbName, tableName, dc.ColumnTypeSql(col))
 
-	_, err := dc.Base().ExecRaw(sql)
+	_, err := dc.base.ExecRaw(sql)
 
 	return err
 }
 
-func (dc *mysqlDialect) SchemaColumnDel(dbName, tableName string, col *base.Column) error {
+func (dc *DialectModeler) ColumnDel(dbName, tableName string, col *modeler.Column) error {
 
 	sql := fmt.Sprintf("ALTER TABLE `%v`.`%v` DROP `%v`", dbName, tableName, col.Name)
 
-	_, err := dc.Base().ExecRaw(sql)
+	_, err := dc.base.ExecRaw(sql)
 
 	return err
 }
 
-func (dc *mysqlDialect) SchemaColumnSet(dbName, tableName string, col *base.Column) error {
+func (dc *DialectModeler) ColumnSet(dbName, tableName string, col *modeler.Column) error {
 
 	sql := fmt.Sprintf("ALTER TABLE `%v`.`%v` CHANGE `%v` %v",
-		dbName, tableName, col.Name, dc.SchemaColumnTypeSql(col))
+		dbName, tableName, col.Name, dc.ColumnTypeSql(col))
 
-	_, err := dc.Base().ExecRaw(sql)
+	_, err := dc.base.ExecRaw(sql)
 
 	return err
 }
 
-func (dc *mysqlDialect) SchemaColumnQuery(dbName, tableName string) ([]*base.Column, error) {
+func (dc *DialectModeler) ColumnQuery(dbName, tableName string) ([]*modeler.Column, error) {
 
-	cols := []*base.Column{}
+	cols := []*modeler.Column{}
 
 	q := "SELECT `COLUMN_NAME`, `IS_NULLABLE`, `COLUMN_DEFAULT`, `COLUMN_TYPE`, `EXTRA` "
 	q += "FROM `INFORMATION_SCHEMA`.`COLUMNS` "
 	q += "WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ?"
 
-	rs, err := dc.Base().QueryRaw(q, dbName, tableName)
+	rs, err := dc.base.QueryRaw(q, dbName, tableName)
 	if err != nil {
 		return cols, err
 	}
 
 	for _, entry := range rs {
 
-		col := &base.Column{}
+		col := &modeler.Column{}
 
 		for name, v := range entry.Fields {
 			content := v.String()
@@ -284,7 +304,7 @@ func (dc *mysqlDialect) SchemaColumnQuery(dbName, tableName string) ([]*base.Col
 	return cols, nil
 }
 
-func (dc *mysqlDialect) SchemaTableAdd(table *base.Table) error {
+func (dc *DialectModeler) TableAdd(table *modeler.Table) error {
 
 	if len(table.Columns) == 0 {
 		return errors.New("No Columns Found")
@@ -293,7 +313,7 @@ func (dc *mysqlDialect) SchemaTableAdd(table *base.Table) error {
 	sql := "CREATE TABLE IF NOT EXISTS " + dc.QuoteStr(table.Name) + " (\n"
 
 	for _, col := range table.Columns {
-		sql += " " + dc.SchemaColumnTypeSql(col) + ",\n"
+		sql += " " + dc.ColumnTypeSql(col) + ",\n"
 	}
 
 	pks := []string{}
@@ -304,12 +324,12 @@ func (dc *mysqlDialect) SchemaTableAdd(table *base.Table) error {
 		}
 
 		switch idx.Type {
-		case base.IndexTypePrimaryKey:
+		case modeler.IndexTypePrimaryKey:
 			pks = idx.Cols
 			continue
-		case base.IndexTypeIndex:
+		case modeler.IndexTypeIndex:
 			sql += " KEY "
-		case base.IndexTypeUnique:
+		case modeler.IndexTypeUnique:
 			sql += " UNIQUE KEY "
 		default:
 			continue
@@ -331,14 +351,14 @@ func (dc *mysqlDialect) SchemaTableAdd(table *base.Table) error {
 
 	if table.Engine != "" {
 		sql += " ENGINE=" + table.Engine
-	} else if dc.Base().Config.Engine != "" {
-		sql += " ENGINE=" + dc.Base().Config.Engine
+	} else if dc.base.Options().Value("engine") != "" {
+		sql += " ENGINE=" + dc.base.Options().Value("engine")
 	}
 
 	if table.Charset != "" {
 		sql += " DEFAULT CHARSET=" + table.Charset
-	} else if dc.Base().Config.Charset != "" {
-		sql += " DEFAULT CHARSET=" + dc.Base().Config.Charset
+	} else if dc.base.Options().Value("charset") != "" {
+		sql += " DEFAULT CHARSET=" + dc.base.Options().Value("charset")
 	} else {
 		sql += " DEFAULT CHARSET=utf8"
 	}
@@ -349,17 +369,59 @@ func (dc *mysqlDialect) SchemaTableAdd(table *base.Table) error {
 
 	sql += ";"
 
-	_, err := dc.Base().ExecRaw(sql)
+	_, err := dc.base.ExecRaw(sql)
 
 	return err
 }
 
-func (dc *mysqlDialect) SchemaTableExist(dbName, tableName string) bool {
+func (dc *DialectModeler) TableQuery(dbName string) ([]*modeler.Table, error) {
+
+	tables := []*modeler.Table{}
+
+	q := "SELECT `TABLE_NAME`, `ENGINE`, `TABLE_COLLATION`, `TABLE_COMMENT` "
+	q += "FROM `INFORMATION_SCHEMA`.`TABLES` "
+	q += "WHERE `TABLE_SCHEMA` = ?"
+
+	rows, err := dc.base.DB().Query(q, dbName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+
+		var name, engine, charset, comment string
+		if err = rows.Scan(&name, &engine, &charset, &comment); err != nil {
+			return nil, err
+		}
+
+		if i := strings.Index(charset, "_"); i > 0 {
+			charset = charset[0:i]
+		}
+
+		idxs, _ := dc.IndexQuery(dbName, name)
+
+		cols, _ := dc.ColumnQuery(dbName, name)
+
+		tables = append(tables, &modeler.Table{
+			Name:    name,
+			Engine:  engine,
+			Charset: charset,
+			Columns: cols,
+			Indexes: idxs,
+			Comment: comment,
+		})
+	}
+
+	return tables, nil
+}
+
+func (dc *DialectModeler) TableExist(dbName, tableName string) bool {
 
 	q := "SELECT `TABLE_NAME` from `INFORMATION_SCHEMA`.`TABLES` "
 	q += "WHERE `TABLE_SCHEMA` = ? and `TABLE_NAME` = ?"
 
-	rows, err := dc.Base().QueryRaw(q, dbName, tableName)
+	rows, err := dc.base.QueryRaw(q, dbName, tableName)
 	if err != nil {
 		return false
 	}
@@ -367,9 +429,9 @@ func (dc *mysqlDialect) SchemaTableExist(dbName, tableName string) bool {
 	return len(rows) > 0
 }
 
-func (dc *mysqlDialect) SchemaSync(dbName string, newds base.DataSet) error {
+func (dc *DialectModeler) Sync(dbName string, newds modeler.DatabaseEntry) error {
 
-	curds, err := dc.SchemaDataSet(dbName)
+	curds, err := dc.DatabaseEntry(dbName)
 	if err != nil {
 		return err
 	}
@@ -377,7 +439,7 @@ func (dc *mysqlDialect) SchemaSync(dbName string, newds base.DataSet) error {
 	for _, newTable := range newds.Tables {
 
 		exist := false
-		var curTable *base.Table
+		var curTable *modeler.Table
 
 		for _, curTable = range curds.Tables {
 
@@ -389,7 +451,7 @@ func (dc *mysqlDialect) SchemaSync(dbName string, newds base.DataSet) error {
 
 		if !exist {
 
-			if err := dc.SchemaTableAdd(newTable); err != nil {
+			if err := dc.TableAdd(newTable); err != nil {
 				return err
 			}
 
@@ -422,14 +484,14 @@ func (dc *mysqlDialect) SchemaSync(dbName string, newds base.DataSet) error {
 
 			if !colExist {
 
-				if err := dc.SchemaColumnAdd(dbName, newTable.Name, newcol); err != nil {
+				if err := dc.ColumnAdd(dbName, newTable.Name, newcol); err != nil {
 					return err
 				}
 			}
 
 			if colChange {
 
-				if err := dc.SchemaColumnSet(dbName, newTable.Name, newcol); err != nil {
+				if err := dc.ColumnSet(dbName, newTable.Name, newcol); err != nil {
 					return err
 				}
 			}
@@ -450,7 +512,7 @@ func (dc *mysqlDialect) SchemaSync(dbName string, newds base.DataSet) error {
 
 			if !curExist {
 				//fmt.Println("index del", curidx.Name)
-				if err := dc.SchemaIndexDel(dbName, newTable.Name, curidx); err != nil {
+				if err := dc.IndexDel(dbName, newTable.Name, curidx); err != nil {
 					return err
 				}
 			}
@@ -470,7 +532,7 @@ func (dc *mysqlDialect) SchemaSync(dbName string, newds base.DataSet) error {
 			}
 
 			if !colExist {
-				if err := dc.SchemaColumnDel(dbName, newTable.Name, curcol); err != nil {
+				if err := dc.ColumnDel(dbName, newTable.Name, curcol); err != nil {
 					return err
 				}
 			}
@@ -504,13 +566,13 @@ func (dc *mysqlDialect) SchemaSync(dbName string, newds base.DataSet) error {
 
 			if newIdxChange {
 				//fmt.Println("index set", newidx.Name)
-				if err := dc.SchemaIndexSet(dbName, newTable.Name, newidx); err != nil {
+				if err := dc.IndexSet(dbName, newTable.Name, newidx); err != nil {
 					return err
 				}
 
 			} else if !newIdxExist {
 				//fmt.Println("index add", newidx.Name)
-				if err := dc.SchemaIndexAdd(dbName, newTable.Name, newidx); err != nil {
+				if err := dc.IndexAdd(dbName, newTable.Name, newidx); err != nil {
 					return err
 				}
 			}
@@ -520,9 +582,9 @@ func (dc *mysqlDialect) SchemaSync(dbName string, newds base.DataSet) error {
 	return nil
 }
 
-func (dc *mysqlDialect) SchemaDataSet(dbName string) (base.DataSet, error) {
+func (dc *DialectModeler) DatabaseEntry(dbName string) (modeler.DatabaseEntry, error) {
 
-	ds := base.DataSet{
+	ds := modeler.DatabaseEntry{
 		DbName: dbName,
 	}
 
@@ -530,54 +592,16 @@ func (dc *mysqlDialect) SchemaDataSet(dbName string) (base.DataSet, error) {
 	q += "FROM `INFORMATION_SCHEMA`.`SCHEMATA` "
 	q += "WHERE `SCHEMA_NAME` = ?"
 
-	err := dc.Base().Conn.QueryRow(q, dbName).Scan(&ds.Charset)
+	err := dc.base.DB().QueryRow(q, dbName).Scan(&ds.Charset)
 	if err != nil {
 		return ds, err
 	}
 
-	ds.Tables, err = dc.SchemaTableQuery(dbName)
+	ds.Tables, err = dc.TableQuery(dbName)
 
 	return ds, err
 }
 
-func (dc *mysqlDialect) SchemaTableQuery(dbName string) ([]*base.Table, error) {
-
-	tables := []*base.Table{}
-
-	q := "SELECT `TABLE_NAME`, `ENGINE`, `TABLE_COLLATION`, `TABLE_COMMENT` "
-	q += "FROM `INFORMATION_SCHEMA`.`TABLES` "
-	q += "WHERE `TABLE_SCHEMA` = ?"
-
-	rows, err := dc.Base().Conn.Query(q, dbName)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-
-		var name, engine, charset, comment string
-		if err = rows.Scan(&name, &engine, &charset, &comment); err != nil {
-			return nil, err
-		}
-
-		if i := strings.Index(charset, "_"); i > 0 {
-			charset = charset[0:i]
-		}
-
-		idxs, _ := dc.SchemaIndexQuery(dbName, name)
-
-		cols, _ := dc.SchemaColumnQuery(dbName, name)
-
-		tables = append(tables, &base.Table{
-			Name:    name,
-			Engine:  engine,
-			Charset: charset,
-			Columns: cols,
-			Indexes: idxs,
-			Comment: comment,
-		})
-	}
-
-	return tables, nil
+func (dc *DialectModeler) QuoteStr(str string) string {
+	return dialect_quote + str + dialect_quote
 }
