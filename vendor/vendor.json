@@ -1,0 +1,13 @@
+{
+	"comment": "",
+	"ignore": "",
+	"package": [
+		{
+			"checksumSHA1": "7aWIT6JP95YK/13HgDsWJwjEZOs=",
+			"path": "github.com/go-sql-driver/mysql",
+			"revision": "9a7aa3606b82e2081a13a008ada88dfdb96c20fd",
+			"revisionTime": "2013-11-02T14:16:43Z"
+		}
+	],
+	"rootPath": "github.com/lynkdb/mysqlgo"
+}
