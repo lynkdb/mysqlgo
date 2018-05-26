@@ -45,6 +45,13 @@ var dialect_stmts = map[string]string{
 	"insertIgnore": "INSERT IGNORE INTO %s (%s) VALUES (%s)",
 }
 
+func dialect_quote_str(name string) string {
+	if name == "*" {
+		return name
+	}
+	return dialect_quote + name + dialect_quote
+}
+
 type Dialect struct {
 	rdb.Base
 }

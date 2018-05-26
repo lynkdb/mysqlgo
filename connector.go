@@ -53,6 +53,7 @@ func NewConnector(cfg connect.ConnOptions) (rdb.Connector, error) {
 	if err != nil {
 		return nil, err
 	}
+	base.QuoteStr = dialect_quote_str
 
 	for k, v := range dialect_stmts {
 		base.StmtSet(k, v)

@@ -16,6 +16,7 @@ package mysqlgo
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/lynkdb/iomix/rdb"
 )
@@ -68,7 +69,12 @@ func (q *Queryer) Parse() (sql string, params []interface{}) {
 		return
 	}
 
-	sql = fmt.Sprintf("SELECT %s FROM %s ", q.cols, q.table)
+	cols := strings.Split(q.cols, ",")
+	for i, v := range cols {
+		cols[i] = dialect_quote_str(v)
+	}
+
+	sql = fmt.Sprintf("SELECT %s FROM %s ", strings.Join(cols, ","), q.table)
 
 	frsql, ps := q.Where().Parse()
 	if len(ps) > 0 {
