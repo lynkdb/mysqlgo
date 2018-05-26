@@ -42,7 +42,7 @@ var dialect_column_types = map[string]string{
 }
 
 var dialect_stmts = map[string]string{
-	"insertIgnore": "INSERT IGNORE INTO `%s` (`%s`) VALUES (%s)",
+	"insertIgnore": "INSERT IGNORE INTO %s (%s) VALUES (%s)",
 }
 
 type Dialect struct {
@@ -57,4 +57,12 @@ func (dc *Dialect) Modeler() (modeler.Modeler, error) {
 
 func (dc *Dialect) QuoteStr(str string) string {
 	return dialect_quote + str + dialect_quote
+}
+
+func (dc *Dialect) NewFilter() rdb.Filter {
+	return NewFilter()
+}
+
+func (dc *Dialect) NewQueryer() rdb.Queryer {
+	return NewQueryer()
 }

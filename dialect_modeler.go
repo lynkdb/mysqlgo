@@ -142,7 +142,7 @@ func (dc *DialectModeler) IndexQuery(dbName, tableName string) ([]*modeler.Index
 	return indexes, nil
 }
 
-func (dc *DialectModeler) ColumnTypeSql(col *modeler.Column) string {
+func (dc *DialectModeler) ColumnTypeSql(db_name, table_name string, col *modeler.Column) string {
 
 	sql, ok := dialect_column_types[col.Type]
 	if !ok {
@@ -188,7 +188,7 @@ func (dc *DialectModeler) ColumnTypeSql(col *modeler.Column) string {
 func (dc *DialectModeler) ColumnAdd(dbName, tableName string, col *modeler.Column) error {
 
 	sql := fmt.Sprintf("ALTER TABLE `%v`.`%v` ADD %v",
-		dbName, tableName, dc.ColumnTypeSql(col))
+		dbName, tableName, dc.ColumnTypeSql(dbName, tableName, col))
 
 	_, err := dc.base.ExecRaw(sql)
 
@@ -207,7 +207,7 @@ func (dc *DialectModeler) ColumnDel(dbName, tableName string, col *modeler.Colum
 func (dc *DialectModeler) ColumnSet(dbName, tableName string, col *modeler.Column) error {
 
 	sql := fmt.Sprintf("ALTER TABLE `%v`.`%v` CHANGE `%v` %v",
-		dbName, tableName, col.Name, dc.ColumnTypeSql(col))
+		dbName, tableName, col.Name, dc.ColumnTypeSql(dbName, tableName, col))
 
 	_, err := dc.base.ExecRaw(sql)
 
@@ -304,7 +304,7 @@ func (dc *DialectModeler) ColumnQuery(dbName, tableName string) ([]*modeler.Colu
 	return cols, nil
 }
 
-func (dc *DialectModeler) TableAdd(table *modeler.Table) error {
+func (dc *DialectModeler) TableAdd(db_name string, table *modeler.Table) error {
 
 	if len(table.Columns) == 0 {
 		return errors.New("No Columns Found")
@@ -313,7 +313,7 @@ func (dc *DialectModeler) TableAdd(table *modeler.Table) error {
 	sql := "CREATE TABLE IF NOT EXISTS " + dc.QuoteStr(table.Name) + " (\n"
 
 	for _, col := range table.Columns {
-		sql += " " + dc.ColumnTypeSql(col) + ",\n"
+		sql += " " + dc.ColumnTypeSql(db_name, table.Name, col) + ",\n"
 	}
 
 	pks := []string{}
@@ -451,7 +451,7 @@ func (dc *DialectModeler) Sync(dbName string, newds modeler.DatabaseEntry) error
 
 		if !exist {
 
-			if err := dc.TableAdd(newTable); err != nil {
+			if err := dc.TableAdd(dbName, newTable); err != nil {
 				return err
 			}
 
