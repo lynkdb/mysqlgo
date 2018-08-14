@@ -33,7 +33,7 @@ type DialectModeler struct {
 	base rdb.Connector
 }
 
-func (dc *DialectModeler) IndexAdd(dbName, tableName string, index *modeler.Index) error {
+func (dc *DialectModeler) IndexSync(tableName string, index *modeler.Index) error {
 
 	action := ""
 	switch index.Type {
@@ -47,7 +47,7 @@ func (dc *DialectModeler) IndexAdd(dbName, tableName string, index *modeler.Inde
 	}
 
 	sql := fmt.Sprintf("ALTER TABLE `%s`.`%s` ADD %s `%s` (%s)",
-		dbName, tableName, action, index.Name,
+		dc.base.DBName(), tableName, action, index.Name,
 		dc.QuoteStr(strings.Join(index.Cols, dc.QuoteStr(","))))
 
 	_, err := dc.base.ExecRaw(sql)
@@ -55,7 +55,7 @@ func (dc *DialectModeler) IndexAdd(dbName, tableName string, index *modeler.Inde
 	return err
 }
 
-func (dc *DialectModeler) IndexDel(dbName, tableName string, index *modeler.Index) error {
+func (dc *DialectModeler) IndexDel(tableName string, index *modeler.Index) error {
 
 	// PRIMARY KEY can be modified, can not be deleted
 	if index.Type == modeler.IndexTypePrimaryKey {
@@ -63,14 +63,14 @@ func (dc *DialectModeler) IndexDel(dbName, tableName string, index *modeler.Inde
 	}
 
 	sql := fmt.Sprintf("ALTER TABLE `%s`.`%s` DROP INDEX `%s`",
-		dbName, tableName, index.Name)
+		dc.base.DBName(), tableName, index.Name)
 
 	_, err := dc.base.ExecRaw(sql)
 
 	return err
 }
 
-func (dc *DialectModeler) IndexSet(dbName, tableName string, index *modeler.Index) error {
+func (dc *DialectModeler) IndexSet(tableName string, index *modeler.Index) error {
 
 	dropAction, addAction := "", ""
 
@@ -86,7 +86,7 @@ func (dc *DialectModeler) IndexSet(dbName, tableName string, index *modeler.Inde
 	}
 
 	sql := fmt.Sprintf("ALTER TABLE `%s`.`%s` DROP %s, ADD %s (%s)",
-		dbName, tableName, dropAction, addAction,
+		dc.base.DBName(), tableName, dropAction, addAction,
 		dc.QuoteStr(strings.Join(index.Cols, dc.QuoteStr(","))))
 	//fmt.Println(sql)
 	_, err := dc.base.ExecRaw(sql)
@@ -94,7 +94,7 @@ func (dc *DialectModeler) IndexSet(dbName, tableName string, index *modeler.Inde
 	return err
 }
 
-func (dc *DialectModeler) IndexQuery(dbName, tableName string) ([]*modeler.Index, error) {
+func (dc *DialectModeler) IndexDump(tableName string) ([]*modeler.Index, error) {
 
 	indexes := []*modeler.Index{}
 
@@ -102,7 +102,7 @@ func (dc *DialectModeler) IndexQuery(dbName, tableName string) ([]*modeler.Index
 	s += "FROM `INFORMATION_SCHEMA`.`STATISTICS` "
 	s += "WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ?"
 
-	rows, err := dc.base.DB().Query(s, dbName, tableName)
+	rows, err := dc.base.DB().Query(s, dc.base.DBName(), tableName)
 	if err != nil {
 		return indexes, err
 	}
@@ -142,7 +142,7 @@ func (dc *DialectModeler) IndexQuery(dbName, tableName string) ([]*modeler.Index
 	return indexes, nil
 }
 
-func (dc *DialectModeler) ColumnTypeSql(db_name, table_name string, col *modeler.Column) string {
+func (dc *DialectModeler) ColumnTypeSql(table_name string, col *modeler.Column) string {
 
 	sql, ok := dialect_column_types[col.Type]
 	if !ok {
@@ -185,36 +185,36 @@ func (dc *DialectModeler) ColumnTypeSql(db_name, table_name string, col *modeler
 	return dc.QuoteStr(col.Name) + " " + sql
 }
 
-func (dc *DialectModeler) ColumnAdd(dbName, tableName string, col *modeler.Column) error {
+func (dc *DialectModeler) ColumnSync(tableName string, col *modeler.Column) error {
 
 	sql := fmt.Sprintf("ALTER TABLE `%v`.`%v` ADD %v",
-		dbName, tableName, dc.ColumnTypeSql(dbName, tableName, col))
+		dc.base.DBName(), tableName, dc.ColumnTypeSql(tableName, col))
 
 	_, err := dc.base.ExecRaw(sql)
 
 	return err
 }
 
-func (dc *DialectModeler) ColumnDel(dbName, tableName string, col *modeler.Column) error {
+func (dc *DialectModeler) ColumnDel(tableName string, col *modeler.Column) error {
 
-	sql := fmt.Sprintf("ALTER TABLE `%v`.`%v` DROP `%v`", dbName, tableName, col.Name)
+	sql := fmt.Sprintf("ALTER TABLE `%v`.`%v` DROP `%v`", dc.base.DBName(), tableName, col.Name)
 
 	_, err := dc.base.ExecRaw(sql)
 
 	return err
 }
 
-func (dc *DialectModeler) ColumnSet(dbName, tableName string, col *modeler.Column) error {
+func (dc *DialectModeler) ColumnSet(tableName string, col *modeler.Column) error {
 
 	sql := fmt.Sprintf("ALTER TABLE `%v`.`%v` CHANGE `%v` %v",
-		dbName, tableName, col.Name, dc.ColumnTypeSql(dbName, tableName, col))
+		dc.base.DBName(), tableName, col.Name, dc.ColumnTypeSql(tableName, col))
 
 	_, err := dc.base.ExecRaw(sql)
 
 	return err
 }
 
-func (dc *DialectModeler) ColumnQuery(dbName, tableName string) ([]*modeler.Column, error) {
+func (dc *DialectModeler) ColumnDump(tableName string) ([]*modeler.Column, error) {
 
 	cols := []*modeler.Column{}
 
@@ -222,7 +222,7 @@ func (dc *DialectModeler) ColumnQuery(dbName, tableName string) ([]*modeler.Colu
 	q += "FROM `INFORMATION_SCHEMA`.`COLUMNS` "
 	q += "WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ?"
 
-	rs, err := dc.base.QueryRaw(q, dbName, tableName)
+	rs, err := dc.base.QueryRaw(q, dc.base.DBName(), tableName)
 	if err != nil {
 		return cols, err
 	}
@@ -304,7 +304,7 @@ func (dc *DialectModeler) ColumnQuery(dbName, tableName string) ([]*modeler.Colu
 	return cols, nil
 }
 
-func (dc *DialectModeler) TableAdd(db_name string, table *modeler.Table) error {
+func (dc *DialectModeler) TableSync(table *modeler.Table) error {
 
 	if len(table.Columns) == 0 {
 		return errors.New("No Columns Found")
@@ -313,7 +313,7 @@ func (dc *DialectModeler) TableAdd(db_name string, table *modeler.Table) error {
 	sql := "CREATE TABLE IF NOT EXISTS " + dc.QuoteStr(table.Name) + " (\n"
 
 	for _, col := range table.Columns {
-		sql += " " + dc.ColumnTypeSql(db_name, table.Name, col) + ",\n"
+		sql += " " + dc.ColumnTypeSql(table.Name, col) + ",\n"
 	}
 
 	pks := []string{}
@@ -374,7 +374,7 @@ func (dc *DialectModeler) TableAdd(db_name string, table *modeler.Table) error {
 	return err
 }
 
-func (dc *DialectModeler) TableQuery(dbName string) ([]*modeler.Table, error) {
+func (dc *DialectModeler) TableDump() ([]*modeler.Table, error) {
 
 	tables := []*modeler.Table{}
 
@@ -382,7 +382,7 @@ func (dc *DialectModeler) TableQuery(dbName string) ([]*modeler.Table, error) {
 	q += "FROM `INFORMATION_SCHEMA`.`TABLES` "
 	q += "WHERE `TABLE_SCHEMA` = ?"
 
-	rows, err := dc.base.DB().Query(q, dbName)
+	rows, err := dc.base.DB().Query(q, dc.base.DBName())
 	if err != nil {
 		return nil, err
 	}
@@ -399,9 +399,9 @@ func (dc *DialectModeler) TableQuery(dbName string) ([]*modeler.Table, error) {
 			charset = charset[0:i]
 		}
 
-		idxs, _ := dc.IndexQuery(dbName, name)
+		idxs, _ := dc.IndexDump(name)
 
-		cols, _ := dc.ColumnQuery(dbName, name)
+		cols, _ := dc.ColumnDump(name)
 
 		tables = append(tables, &modeler.Table{
 			Name:    name,
@@ -416,12 +416,12 @@ func (dc *DialectModeler) TableQuery(dbName string) ([]*modeler.Table, error) {
 	return tables, nil
 }
 
-func (dc *DialectModeler) TableExist(dbName, tableName string) bool {
+func (dc *DialectModeler) TableExist(tableName string) bool {
 
 	q := "SELECT `TABLE_NAME` from `INFORMATION_SCHEMA`.`TABLES` "
 	q += "WHERE `TABLE_SCHEMA` = ? and `TABLE_NAME` = ?"
 
-	rows, err := dc.base.QueryRaw(q, dbName, tableName)
+	rows, err := dc.base.QueryRaw(q, dc.base.DBName(), tableName)
 	if err != nil {
 		return false
 	}
@@ -429,9 +429,9 @@ func (dc *DialectModeler) TableExist(dbName, tableName string) bool {
 	return len(rows) > 0
 }
 
-func (dc *DialectModeler) Sync(dbName string, newds modeler.DatabaseEntry) error {
+func (dc *DialectModeler) SchemaSync(newds *modeler.Schema) error {
 
-	curds, err := dc.DatabaseEntry(dbName)
+	curds, err := dc.SchemaDump()
 	if err != nil {
 		return err
 	}
@@ -451,7 +451,7 @@ func (dc *DialectModeler) Sync(dbName string, newds modeler.DatabaseEntry) error
 
 		if !exist {
 
-			if err := dc.TableAdd(dbName, newTable); err != nil {
+			if err := dc.TableSync(newTable); err != nil {
 				return err
 			}
 
@@ -484,14 +484,14 @@ func (dc *DialectModeler) Sync(dbName string, newds modeler.DatabaseEntry) error
 
 			if !colExist {
 
-				if err := dc.ColumnAdd(dbName, newTable.Name, newcol); err != nil {
+				if err := dc.ColumnSync(newTable.Name, newcol); err != nil {
 					return err
 				}
 			}
 
 			if colChange {
 
-				if err := dc.ColumnSet(dbName, newTable.Name, newcol); err != nil {
+				if err := dc.ColumnSet(newTable.Name, newcol); err != nil {
 					return err
 				}
 			}
@@ -512,7 +512,7 @@ func (dc *DialectModeler) Sync(dbName string, newds modeler.DatabaseEntry) error
 
 			if !curExist {
 				//fmt.Println("index del", curidx.Name)
-				if err := dc.IndexDel(dbName, newTable.Name, curidx); err != nil {
+				if err := dc.IndexDel(newTable.Name, curidx); err != nil {
 					return err
 				}
 			}
@@ -532,7 +532,7 @@ func (dc *DialectModeler) Sync(dbName string, newds modeler.DatabaseEntry) error
 			}
 
 			if !colExist {
-				if err := dc.ColumnDel(dbName, newTable.Name, curcol); err != nil {
+				if err := dc.ColumnDel(newTable.Name, curcol); err != nil {
 					return err
 				}
 			}
@@ -566,13 +566,13 @@ func (dc *DialectModeler) Sync(dbName string, newds modeler.DatabaseEntry) error
 
 			if newIdxChange {
 				//fmt.Println("index set", newidx.Name)
-				if err := dc.IndexSet(dbName, newTable.Name, newidx); err != nil {
+				if err := dc.IndexSet(newTable.Name, newidx); err != nil {
 					return err
 				}
 
 			} else if !newIdxExist {
 				//fmt.Println("index add", newidx.Name)
-				if err := dc.IndexAdd(dbName, newTable.Name, newidx); err != nil {
+				if err := dc.IndexSync(newTable.Name, newidx); err != nil {
 					return err
 				}
 			}
@@ -582,22 +582,36 @@ func (dc *DialectModeler) Sync(dbName string, newds modeler.DatabaseEntry) error
 	return nil
 }
 
-func (dc *DialectModeler) DatabaseEntry(dbName string) (modeler.DatabaseEntry, error) {
-
-	ds := modeler.DatabaseEntry{
-		DbName: dbName,
+func (dc *DialectModeler) SchemaSyncByJson(js string) error {
+	ds, err := modeler.NewSchemaByJson(js)
+	if err != nil {
+		return err
 	}
+	return dc.SchemaSync(ds)
+}
+
+func (dc *DialectModeler) SchemaSyncByJsonFile(js_path string) error {
+	ds, err := modeler.NewSchemaByJsonFile(js_path)
+	if err != nil {
+		return err
+	}
+	return dc.SchemaSync(ds)
+}
+
+func (dc *DialectModeler) SchemaDump() (*modeler.Schema, error) {
+
+	ds := &modeler.Schema{}
 
 	q := "SELECT `DEFAULT_CHARACTER_SET_NAME` "
 	q += "FROM `INFORMATION_SCHEMA`.`SCHEMATA` "
 	q += "WHERE `SCHEMA_NAME` = ?"
 
-	err := dc.base.DB().QueryRow(q, dbName).Scan(&ds.Charset)
+	err := dc.base.DB().QueryRow(q, dc.base.DBName()).Scan(&ds.Charset)
 	if err != nil {
 		return ds, err
 	}
 
-	ds.Tables, err = dc.TableQuery(dbName)
+	ds.Tables, err = dc.TableDump()
 
 	return ds, err
 }

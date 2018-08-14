@@ -60,6 +60,7 @@ func NewConnector(cfg connect.ConnOptions) (rdb.Connector, error) {
 	}
 
 	return &Dialect{
-		Base: *base,
+		Base:   *base,
+		dbName: cfg.Value("dbname"),
 	}, nil
 }

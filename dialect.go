@@ -54,6 +54,11 @@ func dialect_quote_str(name string) string {
 
 type Dialect struct {
 	rdb.Base
+	dbName string
+}
+
+func (dc *Dialect) DBName() string {
+	return dc.dbName
 }
 
 func (dc *Dialect) Modeler() (modeler.Modeler, error) {
