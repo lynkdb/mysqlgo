@@ -78,3 +78,7 @@ func (dc *Dialect) NewFilter() rdb.Filter {
 func (dc *Dialect) NewQueryer() rdb.Queryer {
 	return NewQueryer()
 }
+
+func (dc *Dialect) Close() {
+	dc.Base.Close()
+}
