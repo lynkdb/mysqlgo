@@ -15,15 +15,17 @@
 package mysqlgo
 
 import (
+	"strings"
+
 	"github.com/lynkdb/iomix/rdb"
 	"github.com/lynkdb/iomix/rdb/modeler"
 )
 
 const (
-	dialect_quote = "`"
+	dialectQuote = "`"
 )
 
-var dialect_column_types = map[string]string{
+var dialectColumnTypes = map[string]string{
 	"bool":            "bool",
 	"string":          "varchar(%v)",
 	"string-text":     "longtext",
@@ -41,15 +43,16 @@ var dialect_column_types = map[string]string{
 	"float64-decimal": "numeric(%v, %v)",
 }
 
-var dialect_stmts = map[string]string{
+var dialectStmts = map[string]string{
 	"insertIgnore": "INSERT IGNORE INTO %s (%s) VALUES (%s)",
 }
 
-func dialect_quote_str(name string) string {
-	if name == "*" {
+func dialectQuoteStr(name string) string {
+	if name == "*" ||
+		strings.HasPrefix(strings.ToUpper(name), "COUNT(") {
 		return name
 	}
-	return dialect_quote + name + dialect_quote
+	return dialectQuote + name + dialectQuote
 }
 
 type Dialect struct {
@@ -68,7 +71,7 @@ func (dc *Dialect) Modeler() (modeler.Modeler, error) {
 }
 
 func (dc *Dialect) QuoteStr(str string) string {
-	return dialect_quote + str + dialect_quote
+	return dialectQuote + str + dialectQuote
 }
 
 func (dc *Dialect) NewFilter() rdb.Filter {

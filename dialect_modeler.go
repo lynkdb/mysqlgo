@@ -144,7 +144,7 @@ func (dc *DialectModeler) IndexDump(tableName string) ([]*modeler.Index, error) 
 
 func (dc *DialectModeler) ColumnTypeSql(table_name string, col *modeler.Column) string {
 
-	sql, ok := dialect_column_types[col.Type]
+	sql, ok := dialectColumnTypes[col.Type]
 	if !ok {
 		return dc.QuoteStr(col.Name) + col.Type
 		//, errors.New("Unsupported column type `" + col.Type + "`")
@@ -617,5 +617,5 @@ func (dc *DialectModeler) SchemaDump() (*modeler.Schema, error) {
 }
 
 func (dc *DialectModeler) QuoteStr(str string) string {
-	return dialect_quote + str + dialect_quote
+	return dialectQuote + str + dialectQuote
 }
