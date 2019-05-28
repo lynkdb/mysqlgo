@@ -164,10 +164,10 @@ func (dc *DialectModeler) ColumnTypeSql(table_name string, col *modeler.Column) 
 		sql = fmt.Sprintf(sql, lens[0], lens[1])
 	}
 
-	if col.NullAble {
-		sql += " NULL"
-	} else {
+	if col.NotNullAble {
 		sql += " NOT NULL"
+	} else {
+		sql += " NULL"
 	}
 
 	if col.IncrAble {
@@ -237,8 +237,10 @@ func (dc *DialectModeler) ColumnDump(tableName string) ([]*modeler.Column, error
 			case "COLUMN_NAME":
 				col.Name = strings.Trim(content, "` ")
 			case "IS_NULLABLE":
-				if "YES" == content {
-					col.NullAble = true
+				if "YES" != content {
+					col.NotNullAble = true
+				} else {
+					col.NotNullAble = false
 				}
 			case "COLUMN_DEFAULT":
 				col.Default = content
@@ -474,7 +476,7 @@ func (dc *DialectModeler) SchemaSync(newds *modeler.Schema) error {
 
 				if newcol.Type != curcol.Type ||
 					newcol.Length != curcol.Length ||
-					newcol.NullAble != curcol.NullAble ||
+					newcol.NotNullAble != curcol.NotNullAble ||
 					newcol.IncrAble != curcol.IncrAble ||
 					newcol.Default != curcol.Default {
 					colChange = true

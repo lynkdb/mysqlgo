@@ -41,6 +41,7 @@ var dialectColumnTypes = map[string]string{
 	"uint64":          "bigint unsigned",
 	"float64":         "double precision",
 	"float64-decimal": "numeric(%v, %v)",
+	"bytes":           "LONGBLOB",
 }
 
 var dialectStmts = map[string]string{
@@ -48,10 +49,19 @@ var dialectStmts = map[string]string{
 }
 
 func dialectQuoteStr(name string) string {
-	if name == "*" ||
-		strings.HasPrefix(strings.ToUpper(name), "COUNT(") {
+
+	if name == "*" {
 		return name
 	}
+
+	if n := strings.IndexByte(name, '('); n > 0 {
+		upName := strings.ToUpper(name)
+		if upName[:n] == "COUNT" ||
+			upName[:n] == "SUM" {
+			return name
+		}
+	}
+
 	return dialectQuote + name + dialectQuote
 }
 
