@@ -48,6 +48,14 @@ var dialectStmts = map[string]string{
 	"insertIgnore": "INSERT IGNORE INTO %s (%s) VALUES (%s)",
 }
 
+var dialectAllowFuncs = map[string]bool{
+	"COUNT":  true,
+	"SUM":    true,
+	"LENGTH": true,
+	"MIN":    true,
+	"MAX":    true,
+}
+
 func dialectQuoteStr(name string) string {
 
 	if name == "*" {
@@ -56,8 +64,7 @@ func dialectQuoteStr(name string) string {
 
 	if n := strings.IndexByte(name, '('); n > 0 {
 		upName := strings.ToUpper(name)
-		if upName[:n] == "COUNT" ||
-			upName[:n] == "SUM" {
+		if dialectAllowFuncs[upName[:n]] {
 			return name
 		}
 	}
