@@ -49,11 +49,14 @@ var dialectStmts = map[string]string{
 }
 
 var dialectAllowFuncs = map[string]bool{
-	"COUNT":  true,
-	"SUM":    true,
-	"LENGTH": true,
-	"MIN":    true,
-	"MAX":    true,
+	"COUNT":      true,
+	"SUM":        true,
+	"LENGTH":     true,
+	"MIN":        true,
+	"MAX":        true,
+	"MOD":        true,
+	"COMPRESS":   true,
+	"UNCOMPRESS": true,
 }
 
 func dialectQuoteStr(name string) string {
